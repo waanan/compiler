@@ -200,8 +200,7 @@ class Flatten:
                 tmp_var = "tmp." + str(UniEnv.get_new_lvl("tmp"))
                 self.op_lst.append(("assign", tmp_var, self.exp_to_simple(exp2)))
                 exp2 = tmp_var
-            return ("+", exp1, exp2)
-
+            return "+", exp1, exp2
 
     def run(self):
         final_exp = self.exp_to_simple(self.exp)
@@ -213,6 +212,40 @@ class Flatten:
             self.op_lst.append(("return", tmp_var))
 
 
+def trans_simple_exp_to_tuple(simple_exp):
+    if type(simple_exp) == int:
+        return "int", simple_exp
+    elif type(simple_exp) == str:
+        return "var", simple_exp
+
+
+def select_instruction(op_lst):
+    """
+    转换成类似x86的语言
+    :param op_lst:
+    :return:
+    """
+    new_op_lst = []
+    for inst in op_lst[0:len(op_lst)-1]:
+        var = inst[1]
+        simple_exp = inst[2]
+        simple_exp_type = type(simple_exp)
+        if simple_exp_type in (int, str):
+            new_op_lst.append(("movq", trans_simple_exp_to_tuple(simple_exp), ("var", var)))
+        else:
+            exp1 = simple_exp[1]
+            exp2 = simple_exp[2]
+            if exp1 == var:
+                new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
+            elif exp2 == var:
+                new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp1), ("var", var)))
+            else:
+                new_op_lst.append(("movq", trans_simple_exp_to_tuple(exp1), ("var", var)))
+                new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
+    new_op_lst.append(op_lst[-1])
+    return new_op_lst
+
+
 # test_code = "(+ 3 (let [x 1] x))"
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
 
@@ -220,8 +253,8 @@ class Flatten:
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
 # test_code = "(+ 15 (+ 1 2))" 
-# test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
-test_code = "(let [a 42] (let [b a] a))"
+test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
+# test_code = "(let [a 42] (let [b a] a))"
 scanner = scan(test_code)
 print(scanner.lst)
 ast = parse(scanner)
@@ -231,3 +264,5 @@ print(unify_ast)
 flatten = Flatten(unify_ast)
 flatten.run()
 print(flatten.op_lst)
+op_lst = select_instruction(flatten.op_lst)
+print(op_lst)
