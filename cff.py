@@ -190,15 +190,15 @@ class Flatten:
             self.op_lst.append(("assign", exp.var, simple_var_exp))
             return self.exp_to_simple(exp.body_exp)
         elif exp_type == AddExp:
-            exp1 = exp.exp1
-            exp2 = exp.exp2
+            exp1 = self.exp_to_simple(exp.exp1)
+            exp2 = self.exp_to_simple(exp.exp2)
             if type(exp1) not in (int, str):
                 tmp_var = "tmp." + str(UniEnv.get_new_lvl("tmp"))
-                self.op_lst.append(("assign", tmp_var, self.exp_to_simple(exp1)))
+                self.op_lst.append(("assign", tmp_var, exp1))
                 exp1 = tmp_var
             if type(exp2) not in (int, str):
                 tmp_var = "tmp." + str(UniEnv.get_new_lvl("tmp"))
-                self.op_lst.append(("assign", tmp_var, self.exp_to_simple(exp2)))
+                self.op_lst.append(("assign", tmp_var, exp2))
                 exp2 = tmp_var
             return "+", exp1, exp2
 
@@ -226,43 +226,94 @@ def select_instruction(op_lst):
     :return:
     """
     new_op_lst = []
-    for inst in op_lst[0:len(op_lst)-1]:
-        var = inst[1]
-        simple_exp = inst[2]
-        simple_exp_type = type(simple_exp)
-        if simple_exp_type in (int, str):
-            new_op_lst.append(("movq", trans_simple_exp_to_tuple(simple_exp), ("var", var)))
-        else:
-            exp1 = simple_exp[1]
-            exp2 = simple_exp[2]
-            if exp1 == var:
-                new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
-            elif exp2 == var:
-                new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp1), ("var", var)))
+    for inst in op_lst:
+        if inst[0] == "assign":
+            var = inst[1]
+            simple_exp = inst[2]
+            simple_exp_type = type(simple_exp)
+            if simple_exp_type in (int, str):
+                new_op_lst.append(("movq", trans_simple_exp_to_tuple(simple_exp), ("var", var)))
             else:
-                new_op_lst.append(("movq", trans_simple_exp_to_tuple(exp1), ("var", var)))
-                new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
-    new_op_lst.append(op_lst[-1])
+                exp1 = simple_exp[1]
+                exp2 = simple_exp[2]
+                if exp1 == var:
+                    new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
+                elif exp2 == var:
+                    new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp1), ("var", var)))
+                else:
+                    new_op_lst.append(("movq", trans_simple_exp_to_tuple(exp1), ("var", var)))
+                    new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
+        elif inst[0] == "return":
+            new_op_lst.append(("return", trans_simple_exp_to_tuple(inst[1])))
+        else:
+            error("Unknown op!")
     return new_op_lst
 
 
+def trans_to_home(inst_operand, var_home_dict):
+    if inst_operand[0] == "var":
+        return ("deref", "rbp", var_home_dict[inst_operand[1]])
+    else:
+        return inst_operand
+
+
+def assign_home(op_lst):
+    var_home_dict = {}
+    base = 0
+    for var, count in UniEnv.symbol_dict.items():
+        i = 1
+        while i <= count:
+            base = base - 8
+            var_home_dict[var + "." + str(i)] = base
+            i = i + 1
+    print("[Var home dict]")
+    print(var_home_dict)
+    new_op_lst = []
+    for inst in op_lst:
+        if inst[0] in ("addq", "movq"):
+            new_op_lst.append((inst[0], trans_to_home(inst[1], var_home_dict), trans_to_home(inst[2], var_home_dict)))
+        elif inst[0] == "return":
+            new_op_lst.append((inst[0], trans_to_home(inst[1], var_home_dict)))
+        else:
+            error("Unknown op!")
+    return new_op_lst
+
+
+def patch_instuction(op_lst):
+    pass
+
+
+def print_x84_64(op_lst):
+    pass
+
+
+# test_code = "1"
+# test_code = "(let [x 1] 1)"
 # test_code = "(+ 3 (let [x 1] x))"
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
-
-# test_code = "(let [x 32] (+ (let [x 10] x) x))"
+test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
 # test_code = "(+ 15 (+ 1 2))" 
-test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
+# test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
 # test_code = "(let [a 42] (let [b a] a))"
+
 scanner = scan(test_code)
+print("[Scan list]")
 print(scanner.lst)
 ast = parse(scanner)
+print("[Ast]")
 print(ast)
 unify_ast = uniquify(ast, None)
+print("[Unify]")
 print(unify_ast)
 flatten = Flatten(unify_ast)
 flatten.run()
+print("[Flatten]")
 print(flatten.op_lst)
 op_lst = select_instruction(flatten.op_lst)
+print("[Select instruction]")
 print(op_lst)
+op_lst_with_home = assign_home(op_lst)
+print("[Assign home]")
+print(op_lst_with_home)
