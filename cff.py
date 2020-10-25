@@ -126,6 +126,7 @@ def parse(scanner):
 class UniEnv:
     # 记录一个符号被绑定过的次数
     symbol_dict = {}
+    frame_size = 0
 
     def __init__(self, old_env, key, lvl):
         self.old_env = old_env
@@ -244,7 +245,7 @@ def select_instruction(op_lst):
                     new_op_lst.append(("movq", trans_simple_exp_to_tuple(exp1), ("var", var)))
                     new_op_lst.append(("addq", trans_simple_exp_to_tuple(exp2), ("var", var)))
         elif inst[0] == "return":
-            new_op_lst.append(("return", trans_simple_exp_to_tuple(inst[1])))
+            new_op_lst.append(("movq", trans_simple_exp_to_tuple(inst[1]), ("reg", "rax")))
         else:
             error("Unknown op!")
     return new_op_lst
@@ -261,42 +262,72 @@ def assign_home(op_lst):
     var_home_dict = {}
     base = 0
     for var, count in UniEnv.symbol_dict.items():
+        UniEnv.frame_size += 8 * count
         i = 1
         while i <= count:
             base = base - 8
             var_home_dict[var + "." + str(i)] = base
             i = i + 1
+    if UniEnv.frame_size % 16 != 0:
+        UniEnv.frame_size += 8
     print("[Var home dict]")
     print(var_home_dict)
     new_op_lst = []
     for inst in op_lst:
         if inst[0] in ("addq", "movq"):
             new_op_lst.append((inst[0], trans_to_home(inst[1], var_home_dict), trans_to_home(inst[2], var_home_dict)))
-        elif inst[0] == "return":
-            new_op_lst.append((inst[0], trans_to_home(inst[1], var_home_dict)))
         else:
             error("Unknown op!")
     return new_op_lst
 
 
 def patch_instuction(op_lst):
-    pass
+    new_op_lst = []
+    for inst in op_lst:
+        if inst[1][0] == "deref" and inst[2][0] == "deref":
+            new_op_lst.append(("movq", inst[1], ("reg", "rax")))
+            new_op_lst.append((inst[0], ("reg", "rax"), inst[2]))
+        else:
+            new_op_lst.append(inst)
+    return new_op_lst
+
+
+def trans_operand_to_str(operand):
+    if operand[0] == "int":
+        return "$" + str(operand[1])
+    elif operand[0] == "deref":
+        return str(operand[2]) + "(%" + operand[1] + ")"
+    elif operand[0] == "reg":
+        return "%" + operand[1]
+    else:
+        error("Unknown operand {}".format(operand))
 
 
 def print_x84_64(op_lst):
-    pass
+    print("    .global main")
+    print("main:")
+    print("    pushq %rbp")
+    print("    movq %rsp, %rbp")
+    print("    subq $" + str(UniEnv.frame_size) + ", %rsp")
+
+    for inst in op_lst:
+        print("    " + inst[0] + " " + trans_operand_to_str(inst[1]) + ", " + trans_operand_to_str(inst[2]))
+
+    print("    addq $" + str(UniEnv.frame_size) + ", %rsp")
+    print("    popq %rbp")
+    print("    retq")
 
 
 # test_code = "1"
 # test_code = "(let [x 1] 1)"
 # test_code = "(+ 3 (let [x 1] x))"
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
-test_code = "(let [x 32] (+ (let [x 10] x) x))"
+# test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
 # test_code = "(+ 15 (+ 1 2))" 
 # test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
-# test_code = "(let [a 42] (let [b a] a))"
+test_code = "(let [a 42] (let [b a] a))"
 
 scanner = scan(test_code)
 print("[Scan list]")
@@ -317,3 +348,8 @@ print(op_lst)
 op_lst_with_home = assign_home(op_lst)
 print("[Assign home]")
 print(op_lst_with_home)
+op_lst_with_patch = patch_instuction(op_lst_with_home)
+print(["Patch instruction"])
+print(op_lst_with_patch)
+print("[Print X86-64 code]")
+print_x84_64(op_lst_with_patch)
