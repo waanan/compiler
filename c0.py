@@ -125,10 +125,20 @@ def parse(scanner):
 
 
 class UniEnv:
+    lvldict = {}
+
     def __init__(self, old_env, key, lvl):
         self.old_env = old_env
         self.key = key
         self.lvl = lvl
+
+    @staticmethod
+    def get_new_lvl(var):
+        if var not in UniEnv.lvldict:
+            UniEnv.lvldict[var] = 1
+        else:
+            UniEnv.lvldict[var] += 1
+        return UniEnv.lvldict[var]
 
 
 def apply(uni_env, key):
@@ -155,9 +165,9 @@ def uniquify(exp, env):
         return exp
     elif exp_type == LetExp:
         new_let_exp = uniquify(exp.var_exp, env)
-        lvl = apply(env, exp.var)
-        env = UniEnv(env, exp.var, lvl+1)
-        new_var = exp.var + "." + str(lvl+1)
+        lvl = UniEnv.get_new_lvl(exp.var)
+        env = UniEnv(env, exp.var, lvl)
+        new_var = exp.var + "." + str(lvl)
         return LetExp(new_var, new_let_exp, uniquify(exp.body_exp, env))
     elif exp_type == AddExp:
         exp1 = uniquify(exp.exp1, env)
@@ -168,11 +178,22 @@ def uniquify(exp, env):
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
 
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
-test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
+# test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # "(let ([x.1 32]) " \        [(x,1)]           (none, x, 1)
 # "   (+ (let ([x.2 10]) " \  [(x,1), [x,2]]    ((none, x, 1) , x, 2)
 # "               x.2)" \     [(x,1), [x,2]]    ((none, x, 1) , x, 2)
 # "      x.2))"               [(x,1), [x,2]]    (none, x, 1)
+
+# test_code = "1"
+# test_code = "(let [x 1] 1)"
+# test_code = "(+ 3 (let [x 1] x))"
+# test_code = "(+ (let [x 1] x) (let [x 1] x))"
+# test_code = "(let [x 32] (+ (let [x 10] x) x))"
+# test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
+# test flatten
+# test_code = "(+ 15 (+ 1 2))"
+# test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
+test_code = "(let [a 42] (let [b a] a))"
 a = scan(test_code)
 print(a.lst)
 b = parse(a)
