@@ -15,9 +15,9 @@ class LetExp:
 
     def __str__(self):
         return "(let [" + self.var + " " + \
-                          str(self.var_exp).replace("\n", "\n" + " " * (len(self.var) + 7)) + \
-                      "]\n  " \
-                        + str(self.body_exp).replace("\n", "\n  ") + ")"
+               str(self.var_exp).replace("\n", "\n" + " " * (len(self.var) + 7)) + \
+               "]\n  " \
+               + str(self.body_exp).replace("\n", "\n  ") + ")"
 
 
 class AddExp:
@@ -26,7 +26,7 @@ class AddExp:
         self.exp2 = exp2
 
     def __str__(self):
-        exp1_str = str(self.exp1) 
+        exp1_str = str(self.exp1)
         if "\n" in exp1_str:
             return "(+ " + exp1_str.replace("\n", "\n   ") + "\n   " + str(self.exp2).replace("\n", "\n   ") + ")"
         else:
@@ -173,6 +173,11 @@ def uniquify(exp, env):
         exp1 = uniquify(exp.exp1, env)
         exp2 = uniquify(exp.exp2, env)
         return AddExp(exp1, exp2)
+
+
+class Flattern:
+    def __init__(self, exp):
+        self
 
 
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"

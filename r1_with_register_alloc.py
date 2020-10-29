@@ -257,11 +257,32 @@ def select_instruction(op_lst):
 
 
 def get_live_set_before_op(instruction, after_live_set):
-    pass
+    new_after_set = after_live_set.copy()
+    to_exp = instruction[2]
+    if instruction[0] == "movq":
+        if to_exp[0] == "var" and to_exp[1] in new_after_set:
+            new_after_set.remove(to_exp[1])
+    elif instruction[0] == "addq":
+        if to_exp[0] == "var":
+            new_after_set.add(to_exp[1])
+
+    from_exp = instruction[1]
+    if from_exp[0] == "var":
+        new_after_set.add(from_exp[1])
+    return new_after_set
 
 
 def uncover_live(op_lst):
-    pass
+    after_set = set()
+    liveness_lst = [after_set]
+    iter_pos = len(op_lst) - 1
+    while iter_pos > 0:
+        inst = op_lst[iter_pos]
+        after_set = get_live_set_before_op(inst, after_set)
+        liveness_lst.append(after_set)
+        iter_pos = iter_pos - 1
+    liveness_lst.reverse()
+    return liveness_lst
 
 
 def trans_to_home(inst_operand, var_home_dict):
@@ -283,7 +304,7 @@ def assign_home(op_lst):
             i = i + 1
     if UniEnv.frame_size % 16 != 0:
         UniEnv.frame_size += 8
-    print("[Var home dict]")
+    print("\n[Var home dict]")
     print(var_home_dict)
     new_op_lst = []
     for inst in op_lst:
@@ -340,7 +361,14 @@ def print_x84_64(op_lst):
 # test flatten
 # test_code = "(+ 15 (+ 1 2))" 
 # test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
-test_code = "(let [a 42] (let [b a] a))"
+# test_code = "(let [a 42] (let [b a] a))"
+# test liveness
+test_code = """(let [v 1]
+               (let [w 46]
+               (let [x (+ v 7)]
+               (let [y (+ 4 x)]
+               (let [z (+ x w)]
+               (+ z y))))))"""
 
 scanner = scan(test_code)
 print("[Scan list]")
@@ -360,8 +388,10 @@ print("\n[Flatten]")
 print_op_lst(flatten.op_lst)
 
 op_lst = select_instruction(flatten.op_lst)
+liveness_lst = uncover_live(op_lst)
 print("\n[Select instruction]")
-print_op_lst(op_lst)
+for i in range(len(op_lst)):
+    print(str(op_lst[i]) + "\t\t" + str(liveness_lst[i]))
 
 op_lst_with_home = assign_home(op_lst)
 print("\n[Assign home]")
