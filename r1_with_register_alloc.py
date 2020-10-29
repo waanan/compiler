@@ -6,6 +6,11 @@ def error(msg):
     sys.exit(1)
 
 
+def print_op_lst(op_lst):
+    for op in op_lst:
+        print(op)
+
+
 class LetExp:
     def __init__(self, var, var_exp, body_exp):
         self.var = var
@@ -251,6 +256,14 @@ def select_instruction(op_lst):
     return new_op_lst
 
 
+def get_live_set_before_op(instruction, after_live_set):
+    pass
+
+
+def uncover_live(op_lst):
+    pass
+
+
 def trans_to_home(inst_operand, var_home_dict):
     if inst_operand[0] == "var":
         return ("deref", "rbp", var_home_dict[inst_operand[1]])
@@ -332,24 +345,31 @@ test_code = "(let [a 42] (let [b a] a))"
 scanner = scan(test_code)
 print("[Scan list]")
 print(scanner.lst)
+
 ast = parse(scanner)
-print("[Ast]")
+print("\n[Ast]")
 print(ast)
+
 unify_ast = uniquify(ast, None)
-print("[Unify]")
+print("\n[Unify]")
 print(unify_ast)
+
 flatten = Flatten(unify_ast)
 flatten.run()
-print("[Flatten]")
-print(flatten.op_lst)
+print("\n[Flatten]")
+print_op_lst(flatten.op_lst)
+
 op_lst = select_instruction(flatten.op_lst)
-print("[Select instruction]")
-print(op_lst)
+print("\n[Select instruction]")
+print_op_lst(op_lst)
+
 op_lst_with_home = assign_home(op_lst)
-print("[Assign home]")
-print(op_lst_with_home)
+print("\n[Assign home]")
+print_op_lst(op_lst_with_home)
+
 op_lst_with_patch = patch_instuction(op_lst_with_home)
-print(["Patch instruction"])
-print(op_lst_with_patch)
-print("[Print X86-64 code]")
+print("\n[Patch instruction]")
+print_op_lst(op_lst_with_patch)
+
+print("\n[Print X86-64 code]")
 print_x84_64(op_lst_with_patch)
