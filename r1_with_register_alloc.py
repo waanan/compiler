@@ -272,20 +272,48 @@ def get_live_set_before_op(instruction, after_live_set):
     return new_after_set
 
 
+def get_op_interfer(instruction, after_live_set):
+    op_interfer_lst = []
+    from_exp = instruction[1]
+    to_exp = instruction[2]
+    if instruction[0] == "movq":
+        from_var = None
+        if from_exp[0] == "var":
+            from_var = from_exp[1]
+        if to_exp[0] == "var":
+            for live_var in after_live_set:
+                if live_var not in (from_var, to_exp[1]):
+                    op_interfer_lst.append((to_exp[1], live_var))
+    if instruction[0] == "addq":
+        if to_exp[0] == "var":
+            for live_var in after_live_set:
+                if live_var != to_exp[1]:
+                    op_interfer_lst.append((to_exp[1], live_var))
+    return op_interfer_lst
+
+
 def uncover_live(op_lst):
+    interfere_lst = []
     after_set = set()
-    liveness_lst = [after_set]
+    liveness_lst = []
+    move_
     iter_pos = len(op_lst) - 1
-    while iter_pos > 0:
+    while iter_pos >= 0:
         inst = op_lst[iter_pos]
-        after_set = get_live_set_before_op(inst, after_set)
+        op_interfer_lst = get_op_interfer(inst, after_set)
+        interfere_lst.append(op_interfer_lst)
         liveness_lst.append(after_set)
+        after_set = get_live_set_before_op(inst, after_set)
         iter_pos = iter_pos - 1
     liveness_lst.reverse()
-    return liveness_lst
+    interfere_lst.reverse()
+    return liveness_lst, interfere_lst
 
 
 def trans_to_home(inst_operand, var_home_dict):
+    # rax is used for patch code
+    # caller_save_register "rax", "rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11"
+    caller_save_register = ["rdx", "rcx", "rsi", "rdi", "r8", "r9", "r10", "r11"]
     if inst_operand[0] == "var":
         return ("deref", "rbp", var_home_dict[inst_operand[1]])
     else:
@@ -388,10 +416,10 @@ print("\n[Flatten]")
 print_op_lst(flatten.op_lst)
 
 op_lst = select_instruction(flatten.op_lst)
-liveness_lst = uncover_live(op_lst)
+liveness_lst, interfere_lst = uncover_live(op_lst)
 print("\n[Select instruction]")
 for i in range(len(op_lst)):
-    print(str(op_lst[i]) + "\t\t" + str(liveness_lst[i]))
+    print(str(op_lst[i]) + "\t\t" + str(liveness_lst[i]) + "\t\t" + str(interfere_lst[i]))
 
 op_lst_with_home = assign_home(op_lst)
 print("\n[Assign home]")
