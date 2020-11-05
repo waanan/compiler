@@ -177,7 +177,38 @@ def uniquify(exp, env):
 
 class Flattern:
     def __init__(self, exp):
-        self
+        self.exp = exp
+        self.op_lst = []
+
+    def exp_to_simple(self, exp):
+        exp_type = type(exp)
+        if exp_type in (int, str):
+            return exp
+        elif exp_type == LetExp:
+            simple_var_exp = self.exp_to_simple(exp.var_exp)
+            self.op_lst.append(("assign", exp.var, simple_var_exp))
+            return self.exp_to_simple(exp.body_exp)
+        elif exp_type == AddExp:
+            exp1 = self.exp_to_simple(exp.exp1)
+            exp2 = self.exp_to_simple(exp.exp2)
+            if type(exp1) not in (int, str):
+                tmp_var = "tmp." + str(UniEnv.get_new_lvl("tmp"))
+                self.op_lst.append(("assign", tmp_var, exp1))
+                exp1 = tmp_var
+            if type(exp2) not in (int, str):
+                tmp_var = "tmp." + str(UniEnv.get_new_lvl("tmp"))
+                self.op_lst.append(("assign", tmp_var, exp2))
+                exp2 = tmp_var
+            return "+", exp1, exp2
+
+    def run(self):
+        final_exp = self.exp_to_simple(self.exp)
+        if type(final_exp) in (int, str):
+            self.op_lst.append(("return", final_exp))
+        else:
+            tmp = "tmp." + str(UniEnv.get_new_lvl("tmp"))
+            self.op_lst.append(("assign", tmp, final_exp))
+            self.op_lst.append(("return", tmp))
 
 
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
@@ -196,11 +227,17 @@ class Flattern:
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
-# test_code = "(+ 15 (+ 1 2))"
-# test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
-test_code = "(let [a 42] (let [b a] a))"
+test_code = "(+ 15 (+ 1 2))"
+test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
+# test_code = "(let [a 42] (let [b a] a))"
 a = scan(test_code)
 print(a.lst)
 b = parse(a)
 print(b)
-print(uniquify(b, None))
+uExp = uniquify(b, None)
+print(uExp)
+
+f = Flattern(uExp)
+f.run()
+print(f.op_lst)
+
