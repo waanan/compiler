@@ -55,19 +55,21 @@ def scan(code_str):
             lst.append(letter)
         elif "0" <= letter <= "9":
             num = int(letter)
-            letter = code_str[i]
-            while "0" <= letter <= "9":
-                num = num * 10 + int(letter)
-                i = i + 1
+            if i < length:
                 letter = code_str[i]
+                while "0" <= letter <= "9":
+                    num = num * 10 + int(letter)
+                    i = i + 1
+                    letter = code_str[i]
             lst.append(num)
         elif "a" <= letter <= "z" or "A" <= letter <= "Z":
             tmp = letter
-            letter = code_str[i]
-            while "a" <= letter <= "z" or "A" <= letter <= "Z":
-                tmp = tmp + letter
-                i = i + 1
+            if i<length:
                 letter = code_str[i]
+                while "a" <= letter <= "z" or "A" <= letter <= "Z":
+                    tmp = tmp + letter
+                    i = i + 1
+                    letter = code_str[i]
             lst.append(tmp)
         else:
             print("error!" + letter)
