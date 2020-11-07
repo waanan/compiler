@@ -213,23 +213,51 @@ class Flattern:
             self.op_lst.append(("return", tmp))
 
 
-# test_code = "(+ (let [x 1] x) (let [x 1] x))"
+def select_instruction(op_lst):
+    res = []
+    for op in op_lst:
+        if op[0] == "assign":
+            var = op[2]
+            if type(var) not in (int, str):
+                if type(var[1]) == int:
+                    res.append(("movq", ("int", var[1]), ("var", op[1])))
+                    if type(var[2]) == int:
+                        res.append(("addq", ("int", var[2]), ("var", op[1])))
+                    elif type(var[2]) == str:
+                        res.append(("addq", ("var", var[2]), ("var", op[1])))
+                elif type(var[1]) == str:
+                    res.append(("movq", ("var", var[1]), ("var", op[1])))
+                    if type(var[2]) == int:
+                        res.append(("addq", ("int", var[2]), ("var", op[1])))
+                    elif type(var[2]) == str:
+                        res.append(("addq", ("var", var[2]), ("var", op[1])))
+            elif type(var) == int:
+                res.append(("movq", ("int", var), ("var", op[1])))
+            elif type(var) == str:
+                res.append(("movq", ("var", var), ("var", op[1])))
+        elif op[0] == "return":
+            if type(op[1]) == int:
+                res.append(("movq", ("int", op[1]), ('reg', 'rax')))
+            if type(op[1]) == str:
+                res.append(("movq", ("var", op[1]), ('reg', 'rax')))
+    return res
 
+
+# test_code = "(+ (let [x 1] x) (let [x 1] x))"
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # "(let ([x.1 32]) " \        [(x,1)]           (none, x, 1)
 # "   (+ (let ([x.2 10]) " \  [(x,1), [x,2]]    ((none, x, 1) , x, 2)
 # "               x.2)" \     [(x,1), [x,2]]    ((none, x, 1) , x, 2)
 # "      x.2))"               [(x,1), [x,2]]    (none, x, 1)
-
-test_code = "1"
+# test_code = "1"
 # test_code = "(let [x 1] 1)"
 # test_code = "(+ 3 (let [x 1] x))"
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
-# test_code = "(+ 15 (+ 1 2))"
+test_code = "(+ 15 (+ 1 2))"
 # test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
 # test_code = "(let [a 42] (let [b a] a))"
 a = scan(test_code)
@@ -242,3 +270,6 @@ print(uExp)
 f = Flattern(uExp)
 f.run()
 print(f.op_lst)
+
+si = select_instruction(f.op_lst)
+print(si)

@@ -55,11 +55,12 @@ def scan(code_str):
             lst.append(letter)
         elif "0" <= letter <= "9":
             num = int(letter)
-            letter = code_str[i]
-            while "0" <= letter <= "9":
-                num = num * 10 + int(letter)
-                i = i + 1
+            if i < length:
                 letter = code_str[i]
+                while "0" <= letter <= "9":
+                    num = num * 10 + int(letter)
+                    i = i + 1
+                    letter = code_str[i]
             lst.append(num)
         elif "a" <= letter <= "z" or "A" <= letter <= "Z":
             tmp = letter
@@ -323,16 +324,16 @@ def print_x84_64(op_lst):
     print("    retq")
 
 
-# test_code = "1"
+test_code = "1"
 # test_code = "(let [x 1] 1)"
 # test_code = "(+ 3 (let [x 1] x))"
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
-# test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
+#test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
 # test_code = "(+ 15 (+ 1 2))" 
-# test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
-test_code = "(let [a 42] (let [b a] a))"
+#test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
+# test_code = "(let [a 42] (let [b a] a))"
 
 scanner = scan(test_code)
 print("[Scan list]")
