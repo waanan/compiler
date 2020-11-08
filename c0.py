@@ -7,6 +7,11 @@ def error(msg):
     sys.exit(1)
 
 
+def print_op_lst(op_lst):
+    for op in op_lst:
+        print(op)
+
+
 class LetExp:
     def __init__(self, var, var_exp, body_exp):
         self.var = var
@@ -243,6 +248,82 @@ def select_instruction(op_lst):
     return res
 
 
+home_dict = {}
+level = 1
+
+
+def get_home_dict(var):
+    global level
+    if var not in home_dict:
+        offset = -8 * level
+        home_dict[var] = offset
+        level = level + 1
+        return offset
+    else:
+        return home_dict[var]
+
+
+def assign_home(op_lst):
+    res = []
+    for op in op_lst:
+        if op[1][0] == "var":
+            offset = get_home_dict(op[1][1])
+            tmp1 = ("deref", "rbp", offset)
+        else:
+            tmp1 = op[1]
+        if op[2][0] == "var":
+            offset = get_home_dict(op[2][1])
+            tmp2 = ("deref", "rbp", offset)
+        else:
+            tmp2 = op[2]
+
+        res.append((op[0], tmp1, tmp2))
+    return res
+
+
+def patch_instruction(op_lst):
+    res = []
+    for op in op_lst:
+        if op[0] == "movq":
+            if op[1][0] == "deref" and op[2][0] == "deref":
+                res.append(("movq", op[1], ("reg", "rax")))
+                res.append(("movq", ("reg", "rax"), op[2]))
+            else:
+                res.append(op)
+        elif op[0] == "addq":
+            if op[1][0] == "deref" and op[2][0] == "deref":
+                res.append(("movq", op[1], ("reg", "rax")))
+                res.append(("addq", ("reg", "rax"), op[2]))
+            else:
+                res.append(op)
+    return res
+
+
+def trans_operand_to_str(op):
+    if op[0] == "int":
+        return "$" + str(op[1])
+    elif op[0] == "deref":
+        return str(op[2]) + "(%" + str(op[1]) + ")"
+    elif op[0] == "reg":
+        return "%" + str(op[1])
+
+
+def print_x86_64(op_lst):
+    print("    .global main")
+    print("main:")
+    print("    pushq %rbp")
+    print("    movq %rsp, %rbp")
+    tmp = int(level / 2)
+    print("    subq $" + str(tmp * 16) + ", %rsp")
+
+    for op in op_lst:
+        print("    " + str(op[0]) + " " + str(trans_operand_to_str(op[1])) + ", " + str(trans_operand_to_str(op[2])))
+
+    print("    add $" + str(tmp * 16) + ", %rsp")
+    print("    popq %rbp")
+    print("    retq")
+
+
 # test_code = "(+ (let [x 1] x) (let [x 1] x))"
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
@@ -257,9 +338,9 @@ def select_instruction(op_lst):
 # test_code = "(let [x 32] (+ (let [x 10] x) x))"
 # test_code = "(let [x (let [x 4] (+ x 1))] (+ x 2))"
 # test flatten
-test_code = "(+ 15 (+ 1 2))"
-# test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
-# test_code = "(let [a 42] (let [b a] a))"
+# test_code = "(+ 15 (+ 1 2))"
+#test_code = "(let [x (+ 15 (+ 1 2))] (+ x 41))"
+test_code = "(let [a 42] (let [b a] a))"
 a = scan(test_code)
 print(a.lst)
 b = parse(a)
@@ -267,9 +348,22 @@ print(b)
 uExp = uniquify(b, None)
 print(uExp)
 
+print("\nFlattern")
 f = Flattern(uExp)
 f.run()
-print(f.op_lst)
+print_op_lst(f.op_lst)
 
+print("\nselect_instruction")
 si = select_instruction(f.op_lst)
-print(si)
+print_op_lst(si)
+
+print("\nassign_home")
+ah = assign_home(si)
+print_op_lst(ah)
+
+print("\npatch_instruction")
+pi = patch_instruction(ah)
+print_op_lst(pi)
+
+print("\nprint_x86_64")
+print_x86_64(pi)
