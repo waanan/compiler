@@ -72,8 +72,72 @@ def select_instruction(op_lst):
             new_op_lst.append(("movq", mark_val(inst[1]), ("reg", "rax")))
     return new_op_lst
 
+class StackFrame:
+    symbol_pos_dict = {}
+    frame_size = 0
+
+def get_var_pos(arg):
+    if arg[0] == "var":
+        return ("deref", "rbp", StackFrame.symbol_pos_dict[arg[1]])
+    else:
+        return arg
+
+def assign_home(op_lst):
+    base = 0
+    for var, count in Symbols.symbol_dict.items():
+        StackFrame.frame_size += 8 * count
+        for i in range(count):
+            base = base - 8
+            StackFrame.symbol_pos_dict[var + "." + str(i+1)] = base
+    if StackFrame.frame_size % 16 != 0:
+        StackFrame.frame_size += 8
+    new_op_lst = []
+    for inst in op_lst:
+        new_op_lst.append((inst[0], 
+                            get_var_pos(inst[1]), 
+                            get_var_pos(inst[2])))
+    return new_op_lst
+
+def patch_instuction(op_lst):
+    new_op_lst = []
+    for inst in op_lst:
+        arg1 = inst[1]
+        arg2 = inst[2]
+        if arg1[0] == "deref" and arg2[0] == "deref":
+            new_op_lst.append(("movq", arg1, ("reg", "rax")))
+            new_op_lst.append((inst[0], ("reg", "rax"), arg2))
+        else:
+            new_op_lst.append(inst)
+    return new_op_lst
+
+def trans_operand_to_str(operand):
+    if operand[0] == "int":
+        return "$" + str(operand[1])
+    elif operand[0] == "deref":
+        return str(operand[2]) + "(%" + operand[1] + ")"
+    elif operand[0] == "reg":
+        return "%" + operand[1]
+
+def print_x84_64(op_lst):
+    print("    .global main")
+    print("main:")
+    print("    pushq %rbp")
+    print("    movq %rsp, %rbp")
+    print("    subq $" + str(StackFrame.frame_size) + ", %rsp")
+    for inst in op_lst:
+        print("    " + inst[0] + " " + trans_operand_to_str(inst[1]) + ", " + trans_operand_to_str(inst[2]))
+    print("    addq $" + str(StackFrame.frame_size) + ", %rsp")
+    print("    popq %rbp")
+    print("    retq")
+
 # code = "1"
 code = "(+ (+ 1 2) (+ 3 4))"
+
+def print_op_lst(stage, op_lst):
+    print(stage)
+    for op in op_lst:
+        print(op)
+    print("")
 
 ast = parse(scan(code))
 print(ast)
@@ -81,7 +145,15 @@ print(ast)
 flatten_obj = Flatten(ast)
 flatten_obj.run()
 flatten_op_lst = flatten_obj.op_lst
-print(flatten_op_lst)
+print_op_lst("[Flatten]", flatten_op_lst)
 
 select_op_lst = select_instruction(flatten_op_lst)
-print(select_op_lst)
+print_op_lst("[SELECT OP]", select_op_lst)
+
+assign_home_op_lst = assign_home(select_op_lst)
+print_op_lst("[ASSIGN HOME]", assign_home_op_lst)
+
+patch_op_lst = patch_instuction(assign_home_op_lst)
+print_op_lst("[PATCH OP]", patch_op_lst)
+
+print_x84_64(patch_op_lst)
