@@ -192,8 +192,10 @@ def print_op_lst(stage, op_lst):
 ast = parse(scan(code))
 print(ast)
 
+print("\n[Unify]")
 u_ast = uniquify(ast, None)
 print(u_ast)
+print("")
 
 flatten_obj = Flatten(u_ast)
 flatten_obj.run()
