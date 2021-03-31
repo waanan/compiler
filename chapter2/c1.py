@@ -119,7 +119,7 @@ def select_instruction(op_lst):
                 new_op_lst.append(("movq", mark_val(add_exp1), ("var", var)))
                 new_op_lst.append(("addq", mark_val(add_exp2), ("var", var)))
         elif inst[0] == "return":
-            new_op_lst.append(("movq", mark_val(inst[1]), ("reg", "rax")))
+            new_op_lst.append(("movq", mark_val(inst[1]), ("reg", "rdi")))
     return new_op_lst
 
 class StackFrame:
@@ -176,12 +176,14 @@ def print_x84_64(op_lst):
     print("    subq $" + str(StackFrame.frame_size) + ", %rsp")
     for inst in op_lst:
         print("    " + inst[0] + " " + trans_operand_to_str(inst[1]) + ", " + trans_operand_to_str(inst[2]))
+    print("    callq print_int")
+    print("    movq $0, %rax")
     print("    addq $" + str(StackFrame.frame_size) + ", %rsp")
     print("    popq %rbp")
     print("    retq")
 
 # code = "1"
-code = "(let (x (let (x 4) (+ x 1))) (+ x 2))"
+code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
 
 def print_op_lst(stage, op_lst):
     print(stage)
