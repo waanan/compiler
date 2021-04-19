@@ -122,9 +122,33 @@ def select_instruction(op_lst):
             new_op_lst.append(("movq", mark_val(inst[1]), ("reg", "rdi")))
     return new_op_lst
 
+def cal_liveness(op_lst):
+    live_set = set()
+    live_after_lst = [live_set]
+    for op in op_lst[:0:-1]:
+        new_live_set = live_set.copy()
+        if op[0] == "addq":
+            add_exp1 = op[1]
+            add_exp2 = op[2]
+            if add_exp1[0] == "var":
+                new_live_set.add(add_exp1[1])
+            if add_exp2[0] == "var":
+                new_live_set.add(add_exp2[1])
+        elif op[0] == "movq":
+            from_exp = op[1]
+            to_exp = op[2]
+            if from_exp[0] == "var":
+                new_live_set.add(from_exp[1])
+            if to_exp[0] == "var":
+                new_live_set.discard(to_exp[1])
+        live_set = new_live_set
+        live_after_lst.append(live_set)
+    return reversed(live_after_lst)
+
 class StackFrame:
     symbol_pos_dict = {}
     frame_size = 0
+    alloc_reg_lst = ["rcx", "rdx"]
 
 def get_var_pos(arg):
     if arg[0] == "var":
@@ -183,7 +207,7 @@ def print_x84_64(op_lst):
     print("    retq")
 
 # code = "1"
-code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
+code = "(let (x 1) (let (y 2) (+ x y)))"
 
 def print_op_lst(stage, op_lst):
     print(stage)
@@ -206,6 +230,9 @@ print_op_lst("[Flatten]", flatten_op_lst)
 
 select_op_lst = select_instruction(flatten_op_lst)
 print_op_lst("[SELECT OP]", select_op_lst)
+
+liveness_lst = cal_liveness(select_op_lst)
+print_op_lst("[LIVENESS ANALYZE]", liveness_lst)
 
 assign_home_op_lst = assign_home(select_op_lst)
 print_op_lst("[ASSIGN HOME]", assign_home_op_lst)
