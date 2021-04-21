@@ -1,3 +1,4 @@
+import queue
 
 def scan(code):
     return code.replace("(", " ( ").replace(")", " ) ").split()
@@ -143,33 +144,63 @@ def cal_liveness(op_lst):
                 new_live_set.discard(to_exp[1])
         live_set = new_live_set
         live_after_lst.append(live_set)
-    return reversed(live_after_lst)
+    live_after_lst.reverse()
+    return live_after_lst
 
 class StackFrame:
-    symbol_pos_dict = {}
-    frame_size = 0
-    alloc_reg_lst = ["rcx", "rdx"]
 
-def get_var_pos(arg):
-    if arg[0] == "var":
-        return ("deref", "rbp", StackFrame.symbol_pos_dict[arg[1]])
-    else:
-        return arg
+    def __init__(self):
+        self.symbol_pos_dict = {}
+        self.frame_len = 0
+        self.alloc_reg_lst = ["rcx", "rdx"]
+        self.alloc_queue = queue.PriorityQueue()
 
-def assign_home(op_lst):
-    base = 0
-    for var, count in Symbols.symbol_dict.items():
-        StackFrame.frame_size += 8 * count
-        for i in range(count):
-            base = base - 8
-            StackFrame.symbol_pos_dict[var + "." + str(i+1)] = base
-    if StackFrame.frame_size % 16 != 0:
-        StackFrame.frame_size += 8
+    def mark_del(self, var):
+        pos = self.symbol_pos_dict[var]
+        self.alloc_queue.put(pos)
+    
+    def get_var_pos(self, arg):
+        if arg[0] != "var":
+            return arg
+        var = arg[1]
+        if var not in self.symbol_pos_dict:
+            if self.alloc_queue.empty():
+                self.symbol_pos_dict[var] = self.frame_len
+                self.frame_len = self.frame_len + 1
+            else:
+                self.symbol_pos_dict[var] = self.alloc_queue.get()
+        pos = self.symbol_pos_dict[var]
+        reg_num = len(self.alloc_reg_lst)
+        if pos < reg_num:
+            return ("reg", self.alloc_reg_lst[pos])
+        else:
+            return ("deref", "rbp", -8 * (pos - reg_num + 1))
+    
+    def get_frame_size(self):
+        stack_size = self.frame_len - len(self.alloc_reg_lst)
+        if  stack_size <= 0:
+            return 0
+        if stack_size % 2 == 1:
+            stack_size += 1
+        return stack_size * 8
+
+def assign_home(op_lst, liv_lst, sf):
     new_op_lst = []
-    for inst in op_lst:
+    liv_before_set = set()
+    for i in range(len(op_lst)):
+        inst = op_lst[i]
         new_op_lst.append((inst[0], 
-                            get_var_pos(inst[1]), 
-                            get_var_pos(inst[2])))
+                            sf.get_var_pos(inst[1]), 
+                            sf.get_var_pos(inst[2])))
+        if inst[1][0] == "var":
+            liv_before_set.add(inst[1][1])
+        if inst[2][0] == "var":
+            liv_before_set.add(inst[2][1])
+        liv_after = liv_lst[i]
+        dead_set = liv_before_set - liv_after
+        for var in dead_set:
+            sf.mark_del(var)
+        liv_before_set = liv_after
     return new_op_lst
 
 def patch_instuction(op_lst):
@@ -192,22 +223,22 @@ def trans_operand_to_str(operand):
     elif operand[0] == "reg":
         return "%" + operand[1]
 
-def print_x84_64(op_lst):
+def print_x84_64(op_lst, sf):
     print("    .global main")
     print("main:")
     print("    pushq %rbp")
     print("    movq %rsp, %rbp")
-    print("    subq $" + str(StackFrame.frame_size) + ", %rsp")
+    print("    subq $" + str(sf.get_frame_size()) + ", %rsp")
     for inst in op_lst:
         print("    " + inst[0] + " " + trans_operand_to_str(inst[1]) + ", " + trans_operand_to_str(inst[2]))
     print("    callq print_int")
     print("    movq $0, %rax")
-    print("    addq $" + str(StackFrame.frame_size) + ", %rsp")
+    print("    addq $" + str(sf.get_frame_size()) + ", %rsp")
     print("    popq %rbp")
     print("    retq")
 
 # code = "1"
-code = "(let (x 1) (let (y 2) (+ x y)))"
+code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
 
 def print_op_lst(stage, op_lst):
     print(stage)
@@ -234,10 +265,15 @@ print_op_lst("[SELECT OP]", select_op_lst)
 liveness_lst = cal_liveness(select_op_lst)
 print_op_lst("[LIVENESS ANALYZE]", liveness_lst)
 
-assign_home_op_lst = assign_home(select_op_lst)
+stack_frame = StackFrame()
+assign_home_op_lst = assign_home(select_op_lst, liveness_lst, stack_frame)
+print("\n[STACK POS]")
+print(stack_frame.symbol_pos_dict)
+print("")
+
 print_op_lst("[ASSIGN HOME]", assign_home_op_lst)
 
 patch_op_lst = patch_instuction(assign_home_op_lst)
 print_op_lst("[PATCH OP]", patch_op_lst)
 
-print_x84_64(patch_op_lst)
+print_x84_64(patch_op_lst, stack_frame)
