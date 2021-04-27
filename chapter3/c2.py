@@ -115,10 +115,12 @@ def select_instruction(op_lst):
             if type(value) in (int, str):
                 new_op_lst.append(("movq", mark_val(value), ("var", var)))
             elif value[0] == "+":
-                add_exp1 = value[1]
-                add_exp2 = value[2]
-                new_op_lst.append(("movq", mark_val(add_exp1), ("var", var)))
-                new_op_lst.append(("addq", mark_val(add_exp2), ("var", var)))
+                add_exp1 = mark_val(value[1])
+                add_exp2 = mark_val(value[2])
+                if add_exp1[0] != "var":
+                    add_exp1, add_exp2 = add_exp2, add_exp1
+                new_op_lst.append(("movq", add_exp1, ("var", var)))
+                new_op_lst.append(("addq", add_exp2, ("var", var)))
         elif inst[0] == "return":
             new_op_lst.append(("movq", mark_val(inst[1]), ("reg", "rdi")))
     return new_op_lst
@@ -243,17 +245,20 @@ def print_x84_64(op_lst, sf):
     print("main:")
     print("    pushq %rbp")
     print("    movq %rsp, %rbp")
-    print("    subq $" + str(sf.get_frame_size()) + ", %rsp")
+    if sf.get_frame_size() > 0:
+        print("    subq $" + str(sf.get_frame_size()) + ", %rsp")
     for inst in op_lst:
         print("    " + inst[0] + " " + trans_operand_to_str(inst[1]) + ", " + trans_operand_to_str(inst[2]))
     print("    callq print_int")
     print("    movq $0, %rax")
-    print("    addq $" + str(sf.get_frame_size()) + ", %rsp")
+    if sf.get_frame_size() > 0:
+        print("    addq $" + str(sf.get_frame_size()) + ", %rsp")
     print("    popq %rbp")
     print("    retq")
 
 # code = "1"
-code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
+# code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
+code = "(let (x (let (x 100000000) (+ 200000000 x))) (+ x 300000000))"
 
 def print_op_lst(stage, op_lst):
     print(stage)
