@@ -1,7 +1,9 @@
 import queue
 
+
 def scan(code):
     return code.replace("(", " ( ").replace(")", " ) ").split()
+
 
 def parse(tokens):
     if len(tokens) == 0:
@@ -20,16 +22,19 @@ def parse(tokens):
     else:
         return token
 
-class Symbols:
-    symbol_dict = {}
 
-    @staticmethod
-    def get_new_symbol(var):
-        if var not in Symbols.symbol_dict:
-            Symbols.symbol_dict[var] = 1
+class Symbols:
+
+    def __init__(self):
+        self.symbol_dict = {}
+
+    def get_new_symbol(self, var):
+        if var not in self.symbol_dict:
+            self.symbol_dict[var] = 1
         else:
-            Symbols.symbol_dict[var] += 1
-        return var + "." + str(Symbols.symbol_dict[var])
+            self.symbol_dict[var] += 1
+        return var + "." + str(self.symbol_dict[var])
+
 
 class Senv:
 
@@ -44,7 +49,8 @@ class Senv:
         else:
             return self.old_env.find(key)
 
-def uniquify(exp, env):
+
+def uniquify(exp, env, sym_dict):
     exp_type = type(exp)
     if exp_type == str:
         return env.find(exp)
@@ -53,15 +59,15 @@ def uniquify(exp, env):
     elif exp_type == list:
         op = exp[0]
         if op == "+":
-            arg1 = uniquify(exp[1], env)
-            arg2 = uniquify(exp[2], env)
+            arg1 = uniquify(exp[1], env, sym_dict)
+            arg2 = uniquify(exp[2], env, sym_dict)
             return ["+", arg1, arg2]
         elif op == "let":
-            let_value = uniquify(exp[1][1], env)
+            let_value = uniquify(exp[1][1], env, sym_dict)
             var = exp[1][0]
-            new_name = Symbols.get_new_symbol(var)
+            new_name = sym_dict.get_new_symbol(var)
             new_env = Senv(env, var, new_name)
-            return ["let", [new_name, let_value], uniquify(exp[2], new_env)]
+            return ["let", [new_name, let_value], uniquify(exp[2], new_env, sym_dict)]
 
 class Flatten:
     def __init__(self, exp):
@@ -270,7 +276,8 @@ ast = parse(scan(code))
 print(ast)
 
 print("\n[Unify]")
-u_ast = uniquify(ast, None)
+symbol_dict = Symbols()
+u_ast = uniquify(ast, None, symbol_dict)
 print(u_ast)
 print("")
 
