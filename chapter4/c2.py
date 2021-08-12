@@ -35,6 +35,9 @@ class Symbols:
             self.symbol_dict[var] += 1
         return var + "." + str(self.symbol_dict[var])
 
+    def get_new_tmp(self):
+        return self.get_new_symbol("tmp")
+
 
 class Senv:
 
@@ -50,24 +53,29 @@ class Senv:
             return self.old_env.find(key)
 
 
-def uniquify(exp, env, sym_dict):
-    exp_type = type(exp)
-    if exp_type == str:
-        return env.find(exp)
-    elif exp_type == int:
-        return exp
-    elif exp_type == list:
-        op = exp[0]
-        if op == "+":
-            arg1 = uniquify(exp[1], env, sym_dict)
-            arg2 = uniquify(exp[2], env, sym_dict)
-            return ["+", arg1, arg2]
-        elif op == "let":
-            let_value = uniquify(exp[1][1], env, sym_dict)
-            var = exp[1][0]
-            new_name = sym_dict.get_new_symbol(var)
-            new_env = Senv(env, var, new_name)
-            return ["let", [new_name, let_value], uniquify(exp[2], new_env, sym_dict)]
+class Compiler:
+
+    def __init__(self):
+        self.symbol_dict = Symbols()
+
+    def uniquify(self, exp, env):
+        exp_type = type(exp)
+        if exp_type == str:
+            return env.find(exp)
+        elif exp_type == int:
+            return exp
+        elif exp_type == list:
+            op = exp[0]
+            if op == "+":
+                arg1 = uniquify(exp[1], env)
+                arg2 = uniquify(exp[2], env)
+                return ["+", arg1, arg2]
+            elif op == "let":
+                let_value = uniquify(exp[1][1], env)
+                var = exp[1][0]
+                new_name = self.sym_dict.get_new_symbol(var)
+                new_env = Senv(env, var, new_name)
+                return ["let", [new_name, let_value], uniquify(exp[2], new_env)]
 
 class Flatten:
     def __init__(self, exp):
