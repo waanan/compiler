@@ -1,8 +1,8 @@
 import queue
 
 
-def scan(code):
-    return code.replace("(", " ( ").replace(")", " ) ").split()
+def scan(code_str):
+    return code_str.replace("(", " ( ").replace(")", " ) ").split()
 
 
 def parse(tokens):
@@ -23,23 +23,17 @@ def parse(tokens):
         return token
 
 
-class Symbols:
+class SymbolTable:
 
     def __init__(self):
         self.symbol_dict = {}
 
     def get_new_symbol(self, var):
-        if var not in self.symbol_dict:
-            self.symbol_dict[var] = 1
-        else:
-            self.symbol_dict[var] += 1
+        self.symbol_dict[var] = self.symbol_dict.get(var, 0) + 1
         return var + "." + str(self.symbol_dict[var])
 
-    def get_new_tmp(self):
-        return self.get_new_symbol("tmp")
 
-
-class Senv:
+class Environment:
 
     def __init__(self, old_env, key, new_name):
         self.old_env = old_env
