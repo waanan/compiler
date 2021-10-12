@@ -50,7 +50,10 @@ class Environment:
 class Compiler:
 
     def __init__(self):
-        self.symbol_dict = Symbols()
+        self.symbol_dict = SymbolTable()
+    
+    def do_compile(self, code_str):
+        
 
     def uniquify(self, exp, env):
         exp_type = type(exp)
@@ -61,15 +64,15 @@ class Compiler:
         elif exp_type == list:
             op = exp[0]
             if op == "+":
-                arg1 = uniquify(exp[1], env)
-                arg2 = uniquify(exp[2], env)
+                arg1 = self.uniquify(exp[1], env)
+                arg2 = self.uniquify(exp[2], env)
                 return ["+", arg1, arg2]
             elif op == "let":
-                let_value = uniquify(exp[1][1], env)
+                let_value = self.uniquify(exp[1][1], env)
                 var = exp[1][0]
-                new_name = self.sym_dict.get_new_symbol(var)
-                new_env = Senv(env, var, new_name)
-                return ["let", [new_name, let_value], uniquify(exp[2], new_env)]
+                new_name = self.symbol_dict.get_new_symbol(var)
+                new_env = Environment(env, var, new_name)
+                return ["let", [new_name, let_value], self.uniquify(exp[2], new_env)]
 
 class Flatten:
     def __init__(self, exp):
