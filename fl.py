@@ -44,6 +44,21 @@ class Senv:
         else:
             return self.old_env.find(key)
 
+class BasicBlock:
+
+    def __init__(self, block_name):
+        self.block_name = block_name
+        self.op_lst = []
+    
+    def append(self, op):
+        self.op_lst.append(op)
+
+    def __str__(self):
+        rest = self.block_name + "\n"
+        for op in self.op_lst:
+            rest += "\t" + str(op) + "\n"
+        return rest
+
 def uniquify(exp, env):
     match exp:
         case ["var", var]:
@@ -60,42 +75,23 @@ def uniquify(exp, env):
             new_env = Senv(env, var, new_var)
             return ["let", [new_var, new_value], uniquify(let_exp, new_env)]
 
-class Flatten:
-    def __init__(self, exp):
-        self.exp = exp
-        self.op_lst = []
-    
-    def exp_to_simple(self, exp):
-        exp_type = type(exp)
-        if exp_type in (int, str):
-            return exp
-        elif exp_type == list:
-            if exp[0] == "+":
-                exp1 = self.exp_to_simple(exp[1])
-                exp2 = self.exp_to_simple(exp[2])
-                if type(exp1) not in (int, str):
-                    tmp_var = Symbols.get_new_symbol("tmp")
-                    self.op_lst.append(("assign", tmp_var, exp1))
-                    exp1 = tmp_var
-                if type(exp2) not in (int, str):
-                    tmp_var = Symbols.get_new_symbol("tmp")
-                    self.op_lst.append(("assign", tmp_var, exp2))
-                    exp2 = tmp_var                
-                return "+", exp1, exp2
-            elif exp[0] == "let":
-                simple_let_value= self.exp_to_simple(exp[1][1])
-                self.op_lst.append(("assign", exp[1][0], simple_let_value))
-                return self.exp_to_simple(exp[2])
-        raise SyntaxError('Flatten Err: Unkown Exp {}'.format(exp))
-
-    def run(self):
-        final_exp = self.exp_to_simple(self.exp)
-        if type(final_exp) in (int, str):
-            self.op_lst.append(("return", final_exp))
-        else:
-            tmp_var = Symbols.get_new_symbol("tmp")
-            self.op_lst.append(("assign", tmp_var, final_exp))
-            self.op_lst.append(("return", tmp_var))
+def flatten(exp, dest, bb):
+    match exp:
+        case [("var" | "int"), _]:
+            bb.append(["assign", dest, exp])
+        case ["+", arg1, arg2]:
+            if arg1[0] not in ("int", "var"):
+                tmp_var = ["var", Symbols.get_new_symbol("tmp")]
+                flatten(arg1, tmp_var, bb)
+                arg1 = tmp_var
+            if arg2[0] not in ("int", "var"):
+                tmp_var = ["var", Symbols.get_new_symbol("tmp")]
+                flatten(arg2, tmp_var, bb)
+                arg2 = tmp_var
+            bb.append(["assign", dest, ["+", arg1, arg2]])
+        case ["let", [var, value], let_exp]:
+            flatten(value, ["var", var], bb)
+            flatten(let_exp, dest, bb)
 
 def mark_val(val):
     if type(val) == int:
@@ -257,19 +253,17 @@ def print_x84_64(op_lst, sf):
 # code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
 code = "(let (x (let (x 100000000) (+ 200000000 x))) (+ x 300000000))"
 
-def print_op_lst(stage, op_lst):
-    print(stage)
-    for op in op_lst:
-        print(op)
-    print("")
-
 ast = parse(scan(code))
 print(ast)
 
 print("\n[Unify]")
 u_ast = uniquify(ast, None)
 print(u_ast)
-print("")
+
+print("\n[Flatten]")
+start_bb = BasicBlock("start")
+flatten(u_ast, ["reg", "rax"], start_bb)
+print(start_bb)
 
 # flatten_obj = Flatten(u_ast)
 # flatten_obj.run()
