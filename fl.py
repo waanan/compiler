@@ -48,14 +48,14 @@ class BasicBlock:
 
     def __init__(self, block_name):
         self.block_name = block_name
-        self.op_lst = []
+        self.inst_lst = []
     
     def append(self, op):
-        self.op_lst.append(op)
+        self.inst_lst.append(op)
 
     def __str__(self):
         rest = self.block_name + "\n"
-        for op in self.op_lst:
+        for op in self.inst_lst:
             rest += "\t" + str(op) + "\n"
         return rest
 
@@ -93,30 +93,16 @@ def flatten(exp, dest, bb):
             flatten(value, ["var", var], bb)
             flatten(let_exp, dest, bb)
 
-def mark_val(val):
-    if type(val) == int:
-        return "int", val
-    else:
-        return "var", val
-
-def select_instruction(op_lst):
-    new_op_lst = []
-    for inst in op_lst:
-        if inst[0] == "assign":
-            var = inst[1]
-            value = inst[2]
-            if type(value) in (int, str):
-                new_op_lst.append(("movq", mark_val(value), ("var", var)))
-            elif value[0] == "+":
-                add_exp1 = mark_val(value[1])
-                add_exp2 = mark_val(value[2])
-                if add_exp1[0] != "var":
-                    add_exp1, add_exp2 = add_exp2, add_exp1
-                new_op_lst.append(("movq", add_exp1, ("var", var)))
-                new_op_lst.append(("addq", add_exp2, ("var", var)))
-        elif inst[0] == "return":
-            new_op_lst.append(("movq", mark_val(inst[1]), ("reg", "rdi")))
-    return new_op_lst
+def select_instruction(bb):
+    old_inst_lst = bb.inst_lst
+    bb.inst_lst = []
+    for inst in old_inst_lst:
+        match inst:
+            case [_, dest, ["+", arg1 ,arg2]]:
+                bb.append(["movq", arg1, dest])
+                bb.append(["addq", arg2, dest])
+            case [_, dest, src]:
+                bb.append(["movq", src, dest])
 
 def cal_liveness(op_lst):
     live_set = set()
@@ -249,9 +235,15 @@ def print_x84_64(op_lst, sf):
     print("    popq %rbp")
     print("    retq")
 
-# code = "1"
+code = "1"
 # code = "(let (x (let (x 100000000) (+ x 200000000))) (+ x 300000000))"
-code = "(let (x (let (x 100000000) (+ 200000000 x))) (+ x 300000000))"
+# code ="""
+# (let (a 1)
+#     (let (b a)
+#         1)
+# )
+# """
+# code = "(let (x (let (x 100000000) (+ 200000000 x))) (+ x 300000000))"
 
 ast = parse(scan(code))
 print(ast)
@@ -265,10 +257,10 @@ start_bb = BasicBlock("start")
 flatten(u_ast, ["reg", "rax"], start_bb)
 print(start_bb)
 
-# flatten_obj = Flatten(u_ast)
-# flatten_obj.run()
-# flatten_op_lst = flatten_obj.op_lst
-# print_op_lst("[Flatten]", flatten_op_lst)
+print("\n[SELECT INSTRUCTION]")
+select_instruction(start_bb)
+print(start_bb)
+
 
 # select_op_lst = select_instruction(flatten_op_lst)
 # print_op_lst("[SELECT OP]", select_op_lst)
