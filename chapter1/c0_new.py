@@ -1,5 +1,8 @@
 import sys
 
+def debug(str):
+    print(str, file=sys.stderr)
+
 def scan(code):
     return code.replace("(", " ( ").replace(")", " ) ").split()
 
@@ -72,7 +75,11 @@ class BasicBlock:
     def print_code(self):
         print("_" + self.block_name + ":")
         for inst in self.inst_lst:
-            print("    {} {}, {}".format(inst[0], trans_operand_to_str(inst[1]), trans_operand_to_str(inst[2])))
+            match inst:
+                case ["callq", ["func", func]]:
+                    print("    callq _{}".format(func))
+                case _:
+                    print("    {} {}, {}".format(inst[0], trans_operand_to_str(inst[1]), trans_operand_to_str(inst[2])))
         print("    jmp _" + self.next_block)
         
 
@@ -100,6 +107,8 @@ class StackFrame:
 
 def uniquify(exp, env):
     match exp:
+        case ["read"]:
+            return exp
         case ["var", var]:
             return ["var", env.find(var)]
         case ["int", i]:
@@ -116,6 +125,8 @@ def uniquify(exp, env):
 
 def flatten(exp, dest, bb):
     match exp:
+        case ["read"]:
+            bb.append(["assign", dest, ["func", "read_int"]])
         case [("var" | "int"), _]:
             bb.append(["assign", dest, exp])
         case ["+", arg1, arg2]:
@@ -140,6 +151,9 @@ def select_instruction(bb):
             case [_, dest, ["+", arg1 ,arg2]]:
                 bb.append(["movq", arg1, dest])
                 bb.append(["addq", arg2, dest])
+            case [_, dest, ["func", func]]:
+                bb.append(["callq", ["func", func]])
+                bb.append(["movq", ["reg", "rax"], dest])
             case [_, dest, src]:
                 bb.append(["movq", src, dest])
 
@@ -150,6 +164,8 @@ def assign_home(bb, sf):
         match inst:
             case [op, arg1, arg2]:
                 bb.append([op, sf.get_var_pos(arg1), sf.get_var_pos(arg2)])
+            case [op, arg1]:
+                bb.append([op, sf.get_var_pos(arg1)])
 
 def patch_instruction(bb):
     old_inst_lst = bb.inst_lst
@@ -181,28 +197,28 @@ def print_x84_64(bb, sf):
 code = sys.stdin.read()
 
 ast = parse(scan(code))
-print(ast)
+debug(ast)
 
-print("\n[Unify]")
+debug("\n[Unify]")
 u_ast = uniquify(ast, None)
-print(u_ast)
+debug(u_ast)
 
-print("\n[Flatten]")
+debug("\n[Flatten]")
 start_bb = BasicBlock("start", "conclusion")
 flatten(u_ast, ["reg", "rax"], start_bb)
-print(start_bb)
+debug(start_bb)
 
-print("\n[SELECT INSTRUCTION]")
+debug("\n[SELECT INSTRUCTION]")
 select_instruction(start_bb)
-print(start_bb)
+debug(start_bb)
 
-print("\n[ASSIGN HOME]")
+debug("\n[ASSIGN HOME]")
 sf = StackFrame()
 assign_home(start_bb, sf)
-print(start_bb)
+debug(start_bb)
 
-print("\n[PATCH INSTRUCTION]")
+debug("\n[PATCH INSTRUCTION]")
 patch_instruction(start_bb)
-print(start_bb)
+debug(start_bb)
 
 print_x84_64(start_bb, sf)

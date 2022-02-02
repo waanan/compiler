@@ -127,3 +127,8 @@ dmypy.json
 .idea/
 
 internal/
+
+.DS_Store
+*.o
+*.out
+*.s
